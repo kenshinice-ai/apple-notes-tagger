@@ -52,7 +52,7 @@ or writes `NoteStore.sqlite`.
 ## Install
 
 ```bash
-git clone https://github.com/USER/apple-notes-tagger.git
+git clone https://github.com/kenshinice-ai/apple-notes-tagger.git
 ```
 
 As a Claude Code skill:
