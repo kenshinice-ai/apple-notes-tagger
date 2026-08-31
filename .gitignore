@@ -1,0 +1,9 @@
+*.log
+*.log.done
+*.ids
+notes-scan.txt
+backup*.txt
+to-tag.jsonl
+tags.tsv
+.DS_Store
+__pycache__/
