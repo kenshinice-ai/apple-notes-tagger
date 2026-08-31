@@ -439,6 +439,7 @@ def main():
         recs = scan(os.path.abspath(a.out))
         dead = []
         for n in recs:
+            if n["folder"] == "Recently Deleted": continue   # 回收站里的不算
             n["real"] = n["txt"].count(OBJ) - n["natt"]
             f = tagline_candidate(n["txt"], vocab)
             n["dead"] = bool(f and any(t.startswith("#") for t in f[1].split()))
