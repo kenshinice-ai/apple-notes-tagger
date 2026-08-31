@@ -1,0 +1,14 @@
+{
+  "name": "apple-notes-tagger",
+  "displayName": "Apple Notes Tagger",
+  "version": "1.0.0",
+  "description": "Create, repair, list and remove real Apple Notes hashtag tags on macOS — including Chinese, Japanese and Korean ones.",
+  "author": {
+    "name": "Lee Liu",
+    "url": "https://github.com/kenshinice-ai"
+  },
+  "homepage": "https://github.com/kenshinice-ai/apple-notes-tagger",
+  "repository": "https://github.com/kenshinice-ai/apple-notes-tagger",
+  "license": "MIT",
+  "keywords": ["apple-notes", "macos", "tags", "hashtags", "applescript", "automation", "smart-folders"]
+}

@@ -17,6 +17,11 @@ This repo is a [Claude Code](https://claude.com/claude-code) skill plus two
 standalone scripts that fix that, in place, without rewriting a single character
 of your notes.
 
+<sub>If you got here searching for <i>apple notes hashtag not working</i>,
+<i>notes tag not turning orange</i>, <i>AppleScript can't create Notes tags</i>,
+<i>set body hashtag plain text</i>, <i>Apple Notes tag Shortcuts automation</i>,
+or <i>备忘录 标签 脚本 无效 / 不变色 / 中文标签</i> — yes, this is the fix.</sub>
+
 ---
 
 ## The trick
@@ -51,36 +56,40 @@ or writes `NoteStore.sqlite`.
 
 ## Install
 
+As a Claude Code plugin — two lines, nothing to copy by hand:
+
+```
+/plugin marketplace add kenshinice-ai/apple-notes-tagger
+/plugin install apple-notes-tagger@apple-notes-tagger
+```
+
+Then just ask Claude things like *"my Notes hashtags are plain text, fix them"*,
+*"tag my untagged Apple Notes"*, or *"add #travel to these notes"*.
+
+Or drop the skill in by hand:
+
 ```bash
 git clone https://github.com/kenshinice-ai/apple-notes-tagger.git
+cp -r apple-notes-tagger/skills/apple-notes-tagger ~/.claude/skills/
 ```
 
-As a Claude Code skill:
-
-```bash
-cp -r apple-notes-tagger ~/.claude/skills/apple-notes-tagger
-```
-
-Then just ask Claude things like *"my Notes hashtags are plain text, fix them"*
-or *"tag my untagged notes"*.
-
-Or run the scripts directly — they need only Python 3 and macOS.
+Or ignore Claude entirely and run the scripts — they need only Python 3 and macOS.
 
 ## Usage
 
 ```bash
 # read-only inventory: real-tag counts + notes whose tag line is still dead text
-python3 scripts/notes_tags.py scan --out backup.txt --dead-ids dead.ids
+python3 skills/apple-notes-tagger/scripts/notes_tags.py scan --out backup.txt --dead-ids dead.ids
 
 # repair them in place
-caffeinate -dis python3 scripts/notes_tags.py activate --ids dead.ids --vocab tags.txt
+caffeinate -dis python3 skills/apple-notes-tagger/scripts/notes_tags.py activate --ids dead.ids --vocab tags.txt
 
 # add tags (Chinese included)
-python3 scripts/notes_tags.py add --ids some.ids --tags "#travel,#旅行"
+python3 skills/apple-notes-tagger/scripts/notes_tags.py add --ids some.ids --tags "#travel,#旅行"
 
 # list / remove
-python3 scripts/notes_tags.py tags --id "x-coredata://…/ICNote/p123"
-python3 scripts/notes_tags.py remove --ids some.ids --tags "#draft"
+python3 skills/apple-notes-tagger/scripts/notes_tags.py tags --id "x-coredata://…/ICNote/p123"
+python3 skills/apple-notes-tagger/scripts/notes_tags.py remove --ids some.ids --tags "#draft"
 ```
 
 ### Auto-tagging
@@ -88,10 +97,10 @@ python3 scripts/notes_tags.py remove --ids some.ids --tags "#draft"
 The scripts handle the mechanics; a model handles the judgment.
 
 ```bash
-python3 scripts/notes_tags.py export --out to-tag.jsonl   # untagged notes as JSONL
+python3 skills/apple-notes-tagger/scripts/notes_tags.py export --out to-tag.jsonl   # untagged notes as JSONL
 #   … read to-tag.jsonl, write "note-id<TAB>#tag1 #tag2" lines into tags.tsv …
-python3 scripts/notes_tags.py apply --map tags.tsv --dry-run
-caffeinate -dis python3 scripts/notes_tags.py apply --map tags.tsv
+python3 skills/apple-notes-tagger/scripts/notes_tags.py apply --map tags.tsv --dry-run
+caffeinate -dis python3 skills/apple-notes-tagger/scripts/notes_tags.py apply --map tags.tsv
 ```
 
 `export` skips notes that already have tags and notes that look like they hold
@@ -151,6 +160,18 @@ Apple 备忘录的 `#标签` 不是文字，是内联对象，只有编辑器的
 
 实测：933 条笔记、4124 个标签、0 失败、0 附件丢失。
 
+## Credits
+
+Built by **Lee Liu** ([@kenshinice-ai](https://github.com/kenshinice-ai)) while
+untangling a 936-note Apple Notes library, with [Claude Code](https://claude.com/claude-code).
+
+The space-then-backspace trick, the `U+FFFC` verification path, and the
+`AXDescription = "Tag <name>"` read were all found by experiment on macOS 26 —
+if a future Notes release breaks any of them, please open an issue.
+
+Issues and PRs welcome, especially reports from other macOS versions and from
+non-Chinese non-ASCII tags (Japanese, Korean, Thai, Arabic).
+
 ## License
 
-MIT
+MIT © Lee Liu — see [LICENSE](LICENSE)

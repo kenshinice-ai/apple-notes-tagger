@@ -1,0 +1,27 @@
+{
+  "name": "apple-notes-tagger",
+  "description": "Real Apple Notes hashtag tags from a script, on macOS",
+  "owner": {
+    "name": "Lee Liu",
+    "url": "https://github.com/kenshinice-ai"
+  },
+  "metadata": {
+    "description": "Create, repair, list and remove real Apple Notes tags — including non-ASCII ones",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "apple-notes-tagger",
+      "description": "Create, repair, list and remove real Apple Notes hashtag tags on macOS — the inline objects that show up in the Tags sidebar and drive Smart Folders. Fixes hashtags stuck as plain text after AppleScript or pasting, adds tags in bulk (Chinese/Japanese/Korean included), and can auto-tag untagged notes.",
+      "author": {
+        "name": "Lee Liu"
+      },
+      "category": "productivity",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./skills/apple-notes-tagger"
+      ]
+    }
+  ]
+}
