@@ -437,15 +437,16 @@ def main():
     if a.cmd == "scan":
         vocab = load_vocab(a.vocab)
         recs = scan(os.path.abspath(a.out))
+        live = [n for n in recs if n["folder"] != "Recently Deleted"]
         dead = []
-        for n in recs:
-            if n["folder"] == "Recently Deleted": continue   # 回收站里的不算
+        for n in live:
             n["real"] = n["txt"].count(OBJ) - n["natt"]
             f = tagline_candidate(n["txt"], vocab)
             n["dead"] = bool(f and any(t.startswith("#") for t in f[1].split()))
             if n["dead"]: dead.append(n)
-        print("笔记 %d 条（含 %d 个账户）" % (len(recs), len(set(r["account"] for r in recs))))
-        print("估算真标签总数: %d" % sum(max(0, r["real"]) for r in recs))
+        print("笔记 %d 条（另有回收站 %d 条），账户 %d 个"
+              % (len(live), len(recs) - len(live), len(set(r["account"] for r in recs))))
+        print("估算真标签总数: %d" % sum(max(0, r["real"]) for r in live))
         print("标签行仍是死文本的笔记: %d" % len(dead))
         for n in dead[:30]:
             print("   %-10s %-30s %s" % (n["folder"], n["name"][:30].replace("\n", " "),
