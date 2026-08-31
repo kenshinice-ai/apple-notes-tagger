@@ -120,6 +120,11 @@ and use `--exclude-folder` for whatever should never leave the machine.
 While a batch runs, Notes must stay frontmost and the keyboard must be left
 alone. Budget about **8 seconds per note**.
 
+Tested in **Claude Code on macOS 26** against a 936-note library. It has not yet
+been verified in Cowork — it should work anywhere the skill can run `osascript`
+locally against a running Notes app, but that is untested. Reports from other
+macOS versions are welcome.
+
 ## Safety
 
 This drives a GUI, so it is built to fail closed:
