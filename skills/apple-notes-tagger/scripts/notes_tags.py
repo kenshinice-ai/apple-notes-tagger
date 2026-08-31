@@ -23,6 +23,17 @@ DATE_LINE = re.compile(r"^\s*📅\s*\d{4}-\d{2}-\d{2}\s*$")
 
 class Hang(Exception): pass
 class Fail(Exception): pass
+class Skip(Exception): pass          # 明确判定「不该动这条」，与失败区分开
+
+# AX 会给右到左的标签名包上双向隔离符，匹配前必须剥掉
+BIDI = dict.fromkeys(map(ord, "\u200e\u200f\u061c\u2066\u2067\u2068\u2069"
+                              "\u202a\u202b\u202c\u202d\u202e"), None)
+# 希伯来语/阿拉伯语等强 RTL 区段
+RTL_RE = re.compile("[\u0590-\u08ff\ufb1d-\ufdff\ufe70-\ufeff]"
+                    "|[\U00010800-\U00010fff]|[\U0001e800-\U0001eeff]")
+
+def has_rtl(text):
+    return bool(RTL_RE.search(text))
 
 # ---------------------------------------------------------------- 底层调用
 
@@ -120,6 +131,11 @@ def plan_activate(v0, caret, vocab, scan_back):
 
 def activate(nid, vocab=None, scan_back=1):
     caret, v0 = open_note(nid)
+    f = tagline_candidate(v0, vocab, scan_back)
+    if f and has_rtl(f[1]):
+        # 方向键在双向文本里按「视觉」顺序移动，不按逻辑顺序，光标算术会错位。
+        # 校验能拦住并撤销，但不如根本不动它。add / remove 不受影响。
+        raise Skip("标签行含右到左文字（阿拉伯/希伯来等），方向键定位不可靠，跳过")
     steps, expected = plan_activate(v0, caret, vocab, scan_back)
     if not steps: return 0
     flat = []
@@ -139,67 +155,114 @@ def activate(nid, vocab=None, scan_back=1):
 # ---------------------------------------------------------------- 新增 / 删除
 
 def add_tags(nid, tags, mode="auto"):
+    """在笔记末尾追加真标签。整个过程是原子的：一旦开始改动，
+    任何一步出问题都会撤销并确认还原，绝不留下半成品（否则重跑会重复添加）。"""
     caret, v0 = open_note(nid)
+    f = tagline_candidate(v0)
     lines = v0.split("\n")
     idx = [i for i, l in enumerate(lines) if l.strip()]
-    on_tagline = bool(idx) and tagline_candidate(v0) is not None and idx[-1] == (tagline_candidate(v0) or (None,))[0]
-    if mode == "auto":     mode = "append" if on_tagline else "newline"
-    pre = ""
-    if mode == "newline":
-        _, _, v = osa("ret"); pre = "\n"
-        if v != v0 + "\n":
-            _, _, vu = osa("undo", 3)
-            raise Fail("换行后正文异常（已撤销，完全还原=%s）" % (vu == v0))
-        v0n = v
-    else:
-        if v0 and not v0.endswith((" ", "\n")):
-            _, _, v = osa("space"); pre = " "
+    on_tagline = bool(idx) and f is not None and idx[-1] == f[0]
+    if mode == "auto":
+        mode = "append" if on_tagline else "newline"
+
+    touched = False
+    def rollback(n):
+        try:
+            _, _, vu = osa("undo", n)
+            return vu == v0
+        except (Fail, Hang):
+            return False
+
+    try:
+        if mode == "newline":
+            _, _, v = osa("ret")
+            touched = True
+            if v != v0 + "\n":
+                raise Fail("换行后正文异常")
+            base = v
+        elif v0 and not v0.endswith((" ", "\n")):
+            _, _, v = osa("space")
+            touched = True
             if v != v0 + " ":
-                _, _, vu = osa("undo", 3)
-                raise Fail("补分隔空格后正文异常（已撤销，完全还原=%s）" % (vu == v0))
-            v0n = v
+                raise Fail("补分隔空格后正文异常")
+            base = v
         else:
-            v0n = v0
-    expected = v0n + " ".join([OBJ] * len(tags)) + " "
-    caret, sel, v = osa("addseq", *tags, timeout=30 + 5 * len(tags))
-    if v != expected:
-        _, _, vu = osa("undo", 3 * len(tags) + 4)
-        raise Fail("追加标签后正文不符（已撤销，完全还原=%s）" % (vu == v0))
-    _, _, v = osa("back", 1)              # 去掉末尾那个触发用的空格
-    if v != expected[:-1]:
-        raise Fail("删末尾空格异常，请人工检查这条笔记")
-    return len(tags)
+            base = v0
+
+        expected = base + " ".join([OBJ] * len(tags)) + " "
+        _, _, v = osa("addseq", *tags, timeout=30 + 5 * len(tags))
+        touched = True
+        if v != expected:
+            raise Fail("追加标签后正文不符")
+        _, _, v = osa("back", 1)          # 去掉末尾那个触发解析用的空格
+        if v != expected[:-1]:
+            raise Fail("删末尾空格后正文不符")
+        return len(tags)
+    except (Fail, Hang) as e:
+        if not touched:
+            raise
+        ok = rollback(3 * len(tags) + 6)
+        raise Fail("%s（已撤销，完全还原=%s）" % (e, ok))
+
+def clean_name(desc):
+    """AXDescription 形如 "<本地化的词> <标签名>"（英文是 "Tag foo"）。
+    标签名不含空格，所以按第一个空格切开就够，不依赖任何语言的固定前缀。"""
+    d = desc.translate(BIDI).strip()
+    if " " in d:
+        d = d.split(" ", 1)[1]
+    return d.strip()
+
+def inline_elements(nid=None):
+    """按文档顺序返回正文里的内联元素，与正文中的 ￼ 一一对应。
+    每项 (kind, name)，kind 为 "tag" 或 "attachment"。"""
+    if nid is not None: open_note(nid)
+    _, _, out = osa("elements")
+    els = []
+    for line in out.split("\n"):
+        if not line.strip(): continue
+        f = line.split("\t")
+        role = f[0] if f else ""
+        sub = f[1] if len(f) > 1 else ""
+        desc = f[2] if len(f) > 2 else ""
+        if role == "AXGroup" or sub == "AXHostingView":
+            continue                              # 编辑器自己的宿主视图，不是正文元素
+        if sub == "AXTextAttachment" or role == "AXLink":
+            els.append(("attachment", desc.translate(BIDI).strip()))
+        else:
+            els.append(("tag", clean_name(desc)))
+    return els
 
 def list_tags(nid):
-    open_note(nid)
-    _, _, out = osa("tags")
-    return [l for l in out.split("\n") if l.strip()]
+    return [name for kind, name in inline_elements(nid) if kind == "tag"]
 
 def remove_tags(nid, targets):
-    """删掉指定名字的真标签。正文里若还有附件（附件也显示成 ￼），无法区分，会直接跳过。"""
+    """删掉指定名字的真标签。内联元素与正文里的 ￼ 按文档顺序一一对应，
+    所以带附件的笔记也能正确处理——附件会被识别出来并跳过。"""
+    wanted = [t.lstrip("#").translate(BIDI).strip() for t in targets]
     removed = 0
-    for want in targets:
-        w = want.lstrip("#")
+    for want in wanted:
         caret, v0 = open_note(nid)
-        _, _, out = osa("tags")
-        names = [l for l in out.split("\n") if l.strip()]
+        els = inline_elements()
         positions = [i for i, ch in enumerate(v0) if ch == OBJ]
-        if len(names) != len(positions):
-            raise Fail("真标签 %d 个但占位符 %d 个（正文里有附件？），不动这条"
-                       % (len(names), len(positions)))
-        if w not in names:
+        if len(els) != len(positions):
+            raise Fail("内联元素 %d 个但占位符 %d 个，对不上，不动这条"
+                       % (len(els), len(positions)))
+        k = next((i for i, (kind, name) in enumerate(els)
+                  if kind == "tag" and name == want), None)
+        if k is None:
             continue
-        k = names.index(w)
         a, b = positions[k], positions[k] + 1
         if b < len(v0) and v0[b] == " ":      b += 1     # 连同后面的分隔空格
         elif a > 0 and v0[a - 1] == " ":      a -= 1     # 或前面的
+        if has_rtl(v0[:b]):
+            raise Skip("这条笔记里有右到左文字，方向键按视觉顺序移动，不安全，跳过")
         presses = len(v0) - b
         if presses:
             caret, sel, v = osa("left", presses)
             if v != v0: raise Fail("移动光标时正文变了")
         want_caret = u16(v0[:b])
         if caret != want_caret:
-            raise Fail("光标位置不符 got=%d want=%d（未删）" % (caret, want_caret))
+            raise Fail("光标位置不符 got=%d want=%d（一个字都没删）" % (caret, want_caret))
         expected = v0[:a] + v0[b:]
         _, _, v = osa("back", b - a)
         if v != expected:
@@ -207,7 +270,6 @@ def remove_tags(nid, targets):
             raise Fail("删除后正文不符（已撤销，完全还原=%s）" % (vu == v0))
         removed += 1
     return removed
-
 
 # ---------------------------------------------------------------- 自动分类的两端
 
@@ -302,24 +364,28 @@ def load_vocab(path):
 
 def run_batch(ids, fn, log_path, label):
     log = open(log_path, "a", encoding="utf-8", buffering=1) if log_path else None
-    ok = fail = consec = 0
+    ok = fail = skipped = consec = 0
     t0 = time.time()
     for k, nid in enumerate(ids, 1):
         try:
             n = fn(nid); ok += 1; consec = 0
             line = "OK\t%s\t%d" % (nid, n)
+        except Skip as e:
+            skipped += 1; consec = 0          # 主动跳过不算失败，不触发熔断
+            line = "SKIP\t%s\t%s" % (nid, e)
         except (Fail, Hang) as e:
             fail += 1; consec += 1
             line = "FAIL\t%s\t%s" % (nid, e)
         if log: log.write(line + "\n")
-        if line.startswith("FAIL"): print(line, flush=True)
+        if not line.startswith("OK"): print(line, flush=True)
         if consec >= 5:
             print("连续 5 条失败，停止。"); break
         if k % 20 == 0:
             el = time.time() - t0
-            print("%s %d/%d  ok=%d fail=%d  已用 %.1f 分钟，剩约 %.0f 分钟"
-                  % (label, k, len(ids), ok, fail, el/60, el/k*(len(ids)-k)/60), flush=True)
-    print("%s 完成：ok=%d fail=%d" % (label, ok, fail))
+            print("%s %d/%d  ok=%d skip=%d fail=%d  已用 %.1f 分钟，剩约 %.0f 分钟"
+                  % (label, k, len(ids), ok, skipped, fail, el/60, el/k*(len(ids)-k)/60),
+                  flush=True)
+    print("%s 完成：ok=%d skip=%d fail=%d" % (label, ok, skipped, fail))
     return ok, fail
 
 def main():
@@ -418,6 +484,9 @@ def main():
             try:
                 n = add_tags(nid, tags, a.mode); ok += 1; consec = 0
                 log.write("OK\t%s\t%s\n" % (nid, " ".join(tags)))
+            except Skip as e:
+                consec = 0
+                log.write("SKIP\t%s\t%s\n" % (nid, e)); print("SKIP", nid[-8:], e)
             except (Fail, Hang) as e:
                 fail += 1; consec += 1
                 log.write("FAIL\t%s\t%s\n" % (nid, e)); print("FAIL", nid[-8:], e)

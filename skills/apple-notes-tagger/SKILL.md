@@ -132,6 +132,25 @@ only use it if the user explicitly asks.
    want them visible, write them into the body as text — the property is
    read-only.
 
+## Languages
+
+Tag text is pasted, never typed, so the input method never mangles it; repairing
+an existing tag types nothing at all. Verified on macOS 26: Latin with
+diacritics, CJK, Thai, Devanagari, Greek, Cyrillic, Vietnamese, and non-BMP
+emoji all work for `activate`, `add` and `remove`.
+
+**Right-to-left scripts (Arabic, Hebrew) are the exception for `activate`.**
+Arrow keys move by visual position in bidirectional text, not logical order, so
+the caret arithmetic stops holding. A tag line containing RTL characters is
+detected and skipped before any key is pressed, and logged as `SKIP`, not
+`FAIL` — it does not count toward the consecutive-failure stop. `add` and
+`remove` handle RTL tags fine.
+
+Nothing here parses localised UI text: Notes is located by bundle identifier
+(`com.apple.Notes`), not by the process name, and tag names come from raw
+accessibility descriptions with the localised prefix stripped at the first
+space. A non-English macOS behaves the same.
+
 ## Gotchas that will bite you
 
 - **AX offsets are UTF-16** (an emoji counts 2); **arrow keys move by character**
@@ -145,3 +164,15 @@ only use it if the user explicitly asks.
   failing on `show note id`.
 - Converting tags right-to-left along a line keeps earlier offsets stable —
   each `#tag` collapses to one character, which shifts everything after it.
+- **Attachments also render as `￼`.** Inline elements come back from the
+  `elements` engine command in document order and map one-for-one onto the
+  `￼` placeholders, with attachments marked `AXLink`/`AXTextAttachment` and tags
+  marked `AXUnknown` — that is how `remove` finds the right one on a note that
+  has both.
+- Focus gets stolen constantly (the user types, a notification lands). The
+  engine takes focus back once and re-checks before pressing any key; it never
+  types into whatever happens to be in front. Tell the user to keep their hands
+  off — anything they type while a batch runs lands **in the note**.
+- `add` is atomic: if any step fails after the first modification it undoes and
+  confirms the note is restored. Without that, a mid-run failure would leave the
+  tags applied while the log said FAIL, and a re-run would add them twice.

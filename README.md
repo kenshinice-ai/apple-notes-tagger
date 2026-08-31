@@ -108,6 +108,35 @@ credentials (API keys, BSB/IBAN/SWIFT, card numbers, TFN, password/密码). It i
 heuristic, not a guarantee — read `to-tag.jsonl` before handing it to anything,
 and use `--exclude-folder` for whatever should never leave the machine.
 
+## Languages
+
+Tag text goes in through the clipboard, never the keyboard, so the input method
+never gets a chance to mangle it — and repairing an existing tag types nothing at
+all. Every script below was created and read back on macOS 26:
+
+<img src="docs/multilingual.png" width="800" alt="An Apple Notes note showing fourteen tags in Japanese, Korean, Thai, Chinese, Hindi, Greek, Cyrillic, accented Latin, Turkish, Vietnamese and emoji, all rendered as real orange tags">
+
+| Script | `activate` (repair) | `add` / `remove` |
+|---|---|---|
+| Latin with diacritics — `#café` `#über` `#İstanbul` | ✅ | ✅ |
+| CJK — `#中文` `#日本語` `#한국어` | ✅ | ✅ |
+| Thai, Devanagari (combining marks) — `#ไทย` `#हिन्दी` | ✅ | ✅ |
+| Greek, Cyrillic — `#Ελληνικά` `#Русский` | ✅ | ✅ |
+| Vietnamese — `#tiếng` | ✅ | ✅ |
+| Emoji / non-BMP — `#🔥火` | ✅ | ✅ |
+| Right-to-left — `#عربي` `#עברית` | ⏭ skipped | ✅ |
+
+**Right-to-left is the one real limitation.** Arrow keys move by *visual*
+position in bidirectional text, not logical order, so the caret arithmetic that
+`activate` depends on stops holding. A tag line containing RTL characters is
+detected and skipped **before a single key is pressed**, and logged as `SKIP`
+rather than counted as a failure. Adding and removing RTL tags works fine —
+those paths never walk the caret through bidi text.
+
+The tool also does not read the Notes UI in English: the app is located by bundle
+identifier and tag names come back as raw accessibility descriptions, so a
+non-English macOS works the same way.
+
 ## Requirements
 
 - macOS, Notes app running
