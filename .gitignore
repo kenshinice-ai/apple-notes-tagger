@@ -7,3 +7,6 @@ to-tag.jsonl
 tags.tsv
 .DS_Store
 __pycache__/
+
+# Claude Code per-machine settings (auto-memory group wiring)
+**/.claude/settings.local.json
