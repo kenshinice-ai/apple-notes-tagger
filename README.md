@@ -81,7 +81,7 @@ Or ignore Claude entirely and run the scripts — they need only Python 3 and ma
 # read-only inventory: real-tag counts + notes whose tag line is still dead text
 python3 skills/apple-notes-tagger/scripts/notes_tags.py scan --out backup.txt --dead-ids dead.ids
 
-# repair them in place
+# activate them in place
 caffeinate -dis python3 skills/apple-notes-tagger/scripts/notes_tags.py activate --ids dead.ids --vocab tags.txt
 
 # add tags (Chinese included)
