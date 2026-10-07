@@ -64,7 +64,7 @@ python3 scripts/notes_tags.py scan --out notes-scan.txt --dead-ids dead.ids
 # List the real tag names on one note
 python3 scripts/notes_tags.py tags --id "x-coredata://…/ICNote/p123"
 
-# Repair: turn dead-text tag lines into real tags, in place
+# Activate: turn dead-text tag lines into real tags, in place
 python3 scripts/notes_tags.py activate --ids dead.ids --vocab tags.txt
 
 # Add tags to the end of each note (Chinese works — it pastes rather than types)
@@ -76,7 +76,7 @@ python3 scripts/notes_tags.py remove --ids some.ids --tags "#draft"
 
 `--vocab` is a file of allowed tag words, one per line. **Pass it whenever the
 notes might contain other hashtag-only lines in the body** (social-media topic
-tags such as `#二手闲置[话题]#`), otherwise those get converted too. Without a
+tags such as `#二手闲置[话题]#`), otherwise those get activated too. Without a
 vocab the tool only considers the last non-empty line (or the line above it if
 the last one is a date line).
 
